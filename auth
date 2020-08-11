@@ -1,0 +1,139 @@
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class auth extends CI_Controller
+{
+	public function __construct()
+	{
+		parent::__construct();
+		$this->load->library('form_validation');
+		// supaya kita dapat menggunakan validasi nya
+	}
+	public function index()
+	// login
+	{
+		// membuat validasi agar bisa digunakan di web nya
+		$this->form_validation->set_rules('email', 'Email', 'required|trim|valid_email');
+		$this->form_validation->set_rules('password', 'Password', 'required');
+
+		if ($this->form_validation->run() == false) {
+			$data['title'] = 'WPU Login page';
+			$this->load->view('templates/auth_header', $data);
+			$this->load->view('auth/login');
+			$this->load->view('templates/auth_footer');
+		} else {
+			// validasi sukses
+			$this->_login();
+		}
+	}
+	// membuat fungsi privat =  supaya dapat diakses hanya dari class ini
+	private function _login()
+	{
+		$email = $this->input->post('email');
+		$password = $this->input->post('password');
+
+		$user = $this->db->get_where('user', ['email' => $email])->row_array();
+		// jika usernya ada
+		if ($user) {
+			// jika usernya aktif
+			if ($user['is_active'] == 1) {
+				// cek passowrdnya
+				// jika password nya benar maka bisa masuk kedalam user
+				if (password_verify($password, $user['password'])) {
+					$data = [
+						'email' => $user['email'],
+						'role_id' => $user['role_id']
+						// untuk menentukan kapasistas yang digunakan
+						// misal user dan admin,memiliki fungsi dan kapasitas yang beda
+					];
+					// kita akan simpan kedalam session
+					$this->session->set_userdata($data);
+					// lalu kita arahkan ke view mana, admin atau user
+					// nanti siapkan controler
+					redirect('user');
+				}
+				// jika tidak benar maka akan ditampilkan password salah
+				else {
+					$this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
+			Wrong password 
+		  </div>');
+					//   redirect adalah fungsi untuk mengembalikan ke halaman awal
+					redirect('auth');
+				}
+			} else {
+				$this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
+			Email has not been activated 
+		  </div>');
+				redirect('auth');
+			}
+		} else {
+			$this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
+			Email is not registered 
+		  </div>');
+			redirect('auth');
+		}
+	}
+
+	// membuat fungsi publik registrasi
+
+	public function registration()
+	{
+		// membuat validasi yang digunakan untuk menginput web
+		$this->form_validation->set_rules('firstname', 'Firstname', 'required|trim');
+		$this->form_validation->set_rules('midlename', 'Midlename', 'required|trim');
+		$this->form_validation->set_rules('lastname', 'Lastname', 'required|trim');
+		$this->form_validation->set_rules('email', 'Email', 'required|trim|valid_email|is_unique[user.email]');
+		$this->form_validation->set_rules(
+			'password1',
+			'Password',
+			'required|trim|min_length[3]|matches[password2]',
+			[
+				'matches' => 'password dont match!',
+				'min_length' => 'password to short!'
+			]
+		);
+		$this->form_validation->set_rules('password2', 'Password', 'required|trim|matches[password1]');
+
+
+
+
+		// kita menghubungkan dengan construction nya
+		if ($this->form_validation->run() == false) {
+			$data['title'] = 'Adhim is Superstar User Registration';
+			$this->load->view('templates/auth_header', $data);
+			$this->load->view('auth/registration');
+			$this->load->view('templates/auth_footer');
+		} else {
+			$data = [
+				'firstname' => htmlspecialchars($this->input->post('firstname', true)),
+				'midlename' => htmlspecialchars($this->input->post('midlename', true)),
+				'lastname' => htmlspecialchars($this->input->post('lastname', true)),
+				'email' => htmlspecialchars($this->input->post('email', true)),
+				'image' => 'default.jpg',
+				'password' => password_hash(
+					$this->input->post('password1'),
+					PASSWORD_DEFAULT
+				),
+				'role_id' => 2,
+				'is_active' => 1,
+				// nanti akan dipelajari di user activasion
+				'date_created' => time()
+			];
+
+			$this->db->insert('user', $data);
+			$this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">
+			Congratulation! Your Account Has been Created. Please Login 
+		  </div>');
+			redirect('auth');
+		}
+	}
+	public function logout()
+	{
+		$this->session->unset_userdata('emai');
+		$this->session->unset_userdata('role_id');
+		$this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">
+	 Your Account has been logged out! 
+  </div>');
+		redirect('auth');
+	}
+}
